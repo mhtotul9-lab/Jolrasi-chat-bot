@@ -23,7 +23,7 @@ async function getAIReply(userMessage) {
     const response = await axios.post(
       "https://openrouter.ai/api/v1/chat/completions",
       {
-        model: "meta-llama/llama-3.1-8b-instruct:free",
+        model: "google/gemma-3-4b-it:free",
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
           { role: "user", content: userMessage }
@@ -41,7 +41,7 @@ async function getAIReply(userMessage) {
     );
     return response.data.choices[0].message.content;
   } catch (err) {
-    console.error("AI error:", err.response?.data || err.message);
+    console.error("AI error:", JSON.stringify(err.response?.data) || err.message);
     return "দুঃখিত, এখন একটু সমস্যা হচ্ছে। একটু পরে আবার চেষ্টা করুন 🙏";
   }
 }
