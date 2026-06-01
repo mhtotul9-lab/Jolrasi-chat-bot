@@ -1,119 +1,75 @@
-# কাপড় বিজনেস AI Chatbot 🇧🇩
-### Facebook + WhatsApp অটো-রিপ্লে | সম্পূর্ণ ফ্রি (Google Gemini)
+# কাপড় বিজনেস AI Chatbot 🛍️
+
+Facebook Messenger + WhatsApp Business-এর জন্য Google Gemini AI দিয়ে বাংলায় অটো-রিপ্লে চ্যাটবট।
+
+## সম্পূর্ণ ফ্রি সেটআপ
+- ✅ Google Gemini AI — দিনে ১৫০০ মেসেজ ফ্রি
+- ✅ Vercel Hosting — ফ্রি
+- ✅ GitHub — ফ্রি
+- ✅ মাসিক খরচ: ০ টাকা
 
 ---
 
-## সব খরচের হিসাব
-| সার্ভিস | খরচ |
-|---------|-----|
-| GitHub | ফ্রি |
-| Vercel | ফ্রি |
-| Google Gemini API | ফ্রি (দিনে ১৫০০ মেসেজ) |
-| Facebook/WhatsApp API | ফ্রি |
-| **মোট** | **০ টাকা** |
+## ধাপ ১ — Gemini API Key নিন
+1. https://aistudio.google.com/app/apikey যান
+2. "Create API Key" ক্লিক করুন
+3. Key কপি করে রাখুন
 
----
-
-## ধাপ ১ — Google Gemini API Key নিন (৫ মিনিট)
-
-1. https://aistudio.google.com যান
-2. Google account দিয়ে login করুন
-3. বাম দিকে **"Get API Key"** ক্লিক করুন
-4. **"Create API Key"** ক্লিক করুন
-5. Key টা কপি করে কোথাও সেভ করুন
-   - এরকম দেখতে: `AIzaSyXXXXXXXXXXXXXXXXXXXXX`
-
----
-
-## ধাপ ২ — GitHub-এ কোড আপলোড (৫ মিনিট)
-
-1. https://github.com যান, account না থাকলে বানান
-2. উপরে **"+"** → **"New repository"** ক্লিক করুন
-3. Repository name: `kapor-chatbot`
-4. **"Create repository"** ক্লিক করুন
-5. **"uploading an existing file"** ক্লিক করুন
-6. এই ৩টা ফাইল আপলোড করুন:
-   - `api/webhook.js` (আগে `api` ফোল্ডার বানান)
+## ধাপ ২ — GitHub-এ আপলোড করুন
+1. https://github.com/new যান
+2. Repository name: `kapor-chatbot` দিন
+3. Public সিলেক্ট করুন → Create repository
+4. "uploading an existing file" ক্লিক করুন
+5. এই ৪টি ফাইল আপলোড করুন:
    - `package.json`
    - `vercel.json`
-7. **"Commit changes"** ক্লিক করুন
+   - `.env.example`
+   - `api/webhook.js` (api ফোল্ডারসহ)
+
+## ধাপ ৩ — Vercel-এ Deploy করুন
+1. https://vercel.com/new যান
+2. GitHub দিয়ে Login করুন
+3. `kapor-chatbot` repo সিলেক্ট করুন
+4. Deploy বাটনে ক্লিক করুন
+5. আপনার URL পাবেন: `https://kapor-chatbot.vercel.app`
+
+## ধাপ ৪ — Environment Variables সেট করুন
+Vercel Dashboard → আপনার Project → Settings → Environment Variables
+
+| Key | Value |
+|-----|-------|
+| GEMINI_API_KEY | Google AI Studio-র key |
+| VERIFY_TOKEN | যেকোনো গোপন শব্দ, যেমন: amar_secret_2024 |
+| PAGE_ACCESS_TOKEN | Facebook Page Token |
+| WHATSAPP_TOKEN | WhatsApp Temporary Token |
+| WHATSAPP_PHONE_ID | WhatsApp Phone Number ID |
+
+Keys যোগ করার পর **Redeploy** করুন।
+
+## ধাপ ৫ — Facebook Webhook Connect করুন
+1. https://developers.facebook.com/apps যান
+2. New App → Business type → Create
+3. Messenger → Settings → Webhooks → Add Callback URL:
+   ```
+   https://আপনার-url.vercel.app/api/webhook
+   ```
+4. Verify Token: আপনার VERIFY_TOKEN দিন
+5. Verify and Save → messages সাবস্ক্রাইব করুন
+
+## ধাপ ৬ — WhatsApp Webhook Connect করুন
+1. WhatsApp → Configuration → Webhook URL:
+   ```
+   https://আপনার-url.vercel.app/api/webhook
+   ```
+2. Verify Token: একই VERIFY_TOKEN দিন
+3. Verify and Save → messages সাবস্ক্রাইব করুন
 
 ---
 
-## ধাপ ৩ — Vercel-এ Deploy (৫ মিনিট)
-
-1. https://vercel.com যান
-2. **"Sign Up"** → **"Continue with GitHub"**
-3. **"New Project"** ক্লিক করুন
-4. আপনার `kapor-chatbot` repo সিলেক্ট করুন
-5. **"Deploy"** ক্লিক করুন
-6. Deploy হলে URL পাবেন: `https://kapor-chatbot-xxx.vercel.app`
-   → এই URL টা কপি করে রাখুন
-
----
-
-## ধাপ ৪ — Vercel-এ Secret Keys দিন (৩ মিনিট)
-
-1. Vercel Dashboard → আপনার project → **"Settings"**
-2. বাম দিকে **"Environment Variables"**
-3. নিচের ৫টা variable একে একে যোগ করুন:
-
-| Name | Value |
-|------|-------|
-| `GEMINI_API_KEY` | ধাপ ১-এ পাওয়া Google key |
-| `VERIFY_TOKEN` | যেকোনো একটা শব্দ, যেমন: `amar_secret_2024` |
-| `PAGE_ACCESS_TOKEN` | ধাপ ৬-এ পাবেন |
-| `WHATSAPP_TOKEN` | ধাপ ৬-এ পাবেন |
-| `WHATSAPP_PHONE_ID` | ধাপ ৬-এ পাবেন |
-
-4. সব দেওয়ার পর **"Redeploy"** করুন
-
----
-
-## ধাপ ৫ — Meta Developer App বানান (১০ মিনিট)
-
-1. https://developers.facebook.com যান
-2. উপরে **"My Apps"** → **"Create App"**
-3. **"Business"** সিলেক্ট করুন → Next
-4. App নাম দিন: `Kapor Chatbot` → **"Create App"**
-
----
-
-## ধাপ ৬ — Facebook Messenger সেটআপ
-
-1. App Dashboard-এ **"Add Product"** → **Messenger** → Set Up
-2. **"Access Tokens"** সেকশনে আপনার Page সিলেক্ট করুন
-3. **"Generate Token"** → Token কপি করুন
-   → এটা `PAGE_ACCESS_TOKEN` — Vercel-এ দিন
-4. **"Webhooks"** সেকশনে যান → **"Add Callback URL"**:
-   - Callback URL: `https://আপনার-app.vercel.app/api/webhook`
-   - Verify Token: আপনার `VERIFY_TOKEN` (ধাপ ৪-এ যেটা দিয়েছেন)
-5. **"Verify and Save"** ক্লিক করুন
-6. **"Add Subscriptions"** → `messages` টিক দিন → Save
-
----
-
-## ধাপ ৭ — WhatsApp Business সেটআপ
-
-1. App Dashboard-এ **"Add Product"** → **WhatsApp** → Set Up
-2. **"API Setup"** পেজে:
-   - **Phone Number ID** কপি করুন → Vercel-এ `WHATSAPP_PHONE_ID` দিন
-   - **Temporary Token** কপি করুন → Vercel-এ `WHATSAPP_TOKEN` দিন
-3. **"Configuration"** → **"Webhooks"** → **"Edit"**:
-   - Callback URL: `https://আপনার-app.vercel.app/api/webhook`
-   - Verify Token: আপনার `VERIFY_TOKEN`
-4. **"Verify and Save"** → `messages` সাবস্ক্রাইব করুন
-
----
-
-## সব হয়ে গেলে টেস্ট করুন
-
-আপনার Facebook Page-এ মেসেজ করুন: **"আপনাদের কাপড়ের দাম কত?"**
-AI বাংলায় অটো জবাব দেবে! 🎉
-
----
+## Webhook URL
+```
+https://আপনার-url.vercel.app/api/webhook
+```
 
 ## সমস্যা হলে
-
-- Vercel → আপনার project → **"Logs"** দেখুন
-- লাল কিছু দেখলে স্ক্রিনশট নিয়ে সাহায্য নিন
+Vercel Dashboard → আপনার Project → Functions → webhook.js → Logs দেখুন
