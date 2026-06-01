@@ -1,7 +1,4 @@
-const { GoogleGenerativeAI } = require("@google/generative-ai");
 const axios = require("axios");
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 const SYSTEM_PROMPT = `তুমি একটি বাংলাদেশি কাপড়ের বিজনেসের AI সহকারী।
 সবসময় বাংলায় কথা বলবে।
@@ -21,15 +18,30 @@ const SYSTEM_PROMPT = `তুমি একটি বাংলাদেশি ক
 - অর্ডার করতে উৎসাহিত করো
 - কাপড়ের বাইরের বিষয়ে কথা বলবে না`;
 
-async function getGeminiReply(userMessage) {
+async function getAIReply(userMessage) {
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-    const result = await model.generateContent(
-      SYSTEM_PROMPT + "\n\nকাস্টমারের মেসেজ: " + userMessage
+    const response = await axios.post(
+      "https://openrouter.ai/api/v1/chat/completions",
+      {
+        model: "meta-llama/llama-3.1-8b-instruct:free",
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user", content: userMessage }
+        ],
+        max_tokens: 500
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": "https://jolrasi-chatbot.vercel.app",
+          "X-Title": "Jolrasi Chatbot"
+        }
+      }
     );
-    return result.response.text();
+    return response.data.choices[0].message.content;
   } catch (err) {
-    console.error("Gemini error:", err.message);
+    console.error("AI error:", err.response?.data || err.message);
     return "দুঃখিত, এখন একটু সমস্যা হচ্ছে। একটু পরে আবার চেষ্টা করুন 🙏";
   }
 }
@@ -72,24 +84,19 @@ async function sendWAMessage(to, text) {
 }
 
 module.exports = async (req, res) => {
-  // Webhook Verification (GET)
   if (req.method === "GET") {
     const mode = req.query["hub.mode"];
     const token = req.query["hub.verify_token"];
     const challenge = req.query["hub.challenge"];
-
     if (mode === "subscribe" && token === process.env.VERIFY_TOKEN) {
-      console.log("Webhook verified successfully");
       return res.status(200).send(challenge);
     }
     return res.status(403).json({ error: "Verification failed" });
   }
 
-  // Receive Messages (POST)
   if (req.method === "POST") {
     const body = req.body;
 
-    // ── Facebook Messenger ──
     if (body.object === "page") {
       for (const entry of body.entry || []) {
         for (const event of entry.messaging || []) {
@@ -97,8 +104,7 @@ module.exports = async (req, res) => {
             const userText = event.message.text;
             const senderId = event.sender.id;
             console.log(`FB Message from ${senderId}: ${userText}`);
-
-            const reply = await getGeminiReply(userText);
+            const reply = await getAIReply(userText);
             await sendFBMessage(senderId, reply);
           }
         }
@@ -106,7 +112,6 @@ module.exports = async (req, res) => {
       return res.status(200).json({ status: "ok" });
     }
 
-    // ── WhatsApp Business ──
     if (body.object === "whatsapp_business_account") {
       for (const entry of body.entry || []) {
         for (const change of entry.changes || []) {
@@ -114,12 +119,8 @@ module.exports = async (req, res) => {
           if (messages) {
             for (const msg of messages) {
               if (msg.type === "text") {
-                const userText = msg.text.body;
-                const from = msg.from;
-                console.log(`WA Message from ${from}: ${userText}`);
-
-                const reply = await getGeminiReply(userText);
-                await sendWAMessage(from, reply);
+                const reply = await getAIReply(msg.text.body);
+                await sendWAMessage(msg.from, reply);
               }
             }
           }
