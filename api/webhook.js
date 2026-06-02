@@ -49,7 +49,7 @@ async function getAIReply(userMessage) {
 async function sendFBMessage(recipientId, text) {
   try {
     await axios.post(
-      `https://graph.facebook.com/v18.0/me/messages`,
+      "https://graph.facebook.com/v18.0/me/messages",
       { recipient: { id: recipientId }, message: { text } },
       {
         params: { access_token: process.env.PAGE_ACCESS_TOKEN },

@@ -1,13 +1,7 @@
 {
-  "name": "kapor-chatbot",
+  "name": "jolrasi-chatbot",
   "version": "1.0.0",
-  "description": "Kapor Business AI Chatbot - Facebook Messenger + WhatsApp",
-  "main": "index.js",
-  "scripts": {
-    "start": "node index.js"
-  },
   "dependencies": {
-    "@google/generative-ai": "^0.21.0",
     "axios": "^1.6.0"
   },
   "engines": {
