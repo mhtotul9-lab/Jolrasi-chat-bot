@@ -1,71 +1,66 @@
 const axios = require("axios");
+const admin = require("firebase-admin");
 
-// Firebase REST API দিয়ে পণ্য আনো (Admin SDK ছাড়া)
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.cert({
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+    })
+  });
+}
+
+const db = admin.firestore();
+
 async function getProductsFromFirebase() {
   try {
-    const projectId = process.env.FIREBASE_PROJECT_ID;
-    const apiKey = process.env.FIREBASE_API_KEY;
-    
-    const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/products?key=${apiKey}&pageSize=50`;
-    
-    const response = await axios.get(url);
-    const documents = response.data.documents || [];
-    
-    const products = documents.map(doc => {
-      const f = doc.fields || {};
-      return {
-        নাম: f.name?.stringValue || '',
-        ক্যাটাগরি: f.category?.stringValue || '',
-        বিবরণ: f.description?.stringValue || '',
-        বিক্রয়_মূল্য: f.sellingPrice?.integerValue || f.sellingPrice?.doubleValue || 0,
-        স্টক: f.stock?.integerValue || 0,
-      };
-    }).filter(p => p.নাম);
-    
-    console.log(`Firebase থেকে ${products.length}টি পণ্য পাওয়া গেছে`);
+    const snap = await db.collection('products').limit(30).get();
+    const products = [];
+    snap.forEach(doc => {
+      const p = doc.data();
+      if (p.name) {
+        products.push({
+          নাম: p.name || '',
+          ক্যাটাগরি: p.category || '',
+          বিবরণ: (p.description || '').slice(0, 80),
+          মূল্য: p.sellingPrice || 0,
+          স্টক: p.stock || 0,
+        });
+      }
+    });
+    console.log(`পণ্য পাওয়া গেছে: ${products.length}টি`);
     return products;
   } catch (err) {
-    console.error("Firebase error:", err.response?.data || err.message);
+    console.error("Firebase error:", err.message);
     return [];
   }
 }
 
 async function getAIReply(userMessage, products) {
   const productList = products.length > 0
-    ? products.map(p =>
-        `- ${p.নাম} (${p.ক্যাটাগরি}): ৳${p.বিক্রয়_মূল্য}, স্টক: ${p.স্টক}টি${p.বিবরণ ? ', বিবরণ: ' + p.বিবরণ.slice(0, 100) : ''}`
-      ).join('\n')
-    : 'এখন কোনো পণ্য স্টকে নেই।';
+    ? products.map(p => `• ${p.নাম} | ${p.ক্যাটাগরি} | ৳${p.মূল্য} | স্টক:${p.স্টক}`).join('\n')
+    : 'এখন কোনো পণ্য নেই।';
 
-  const SYSTEM_PROMPT = `তুমি Jolrasi Clothing Brand-এর AI সহকারী। সবসময় বাংলায় কথা বলবে।
+  const prompt = `তুমি Jolrasi Clothing Brand-এর বাংলা AI সহকারী।
 
-বিজনেসের তথ্য:
-- ডেলিভারি: সারা বাংলাদেশে কুরিয়ারে, ৩-৫ কার্যদিবস
-- চার্জ: ঢাকায় ৬০ টাকা, ঢাকার বাইরে ১২০ টাকা
-- পেমেন্ট: বিকাশ, নগদ, রকেট, ক্যাশ অন ডেলিভারি
-- অর্ডার: নাম + ঠিকানা + ফোন + পণ্যের নাম + সাইজ জানালে অর্ডার হবে
-- রিটার্ন: পণ্য পেলে ২৪ ঘণ্টার মধ্যে জানাতে হবে
-
-আমাদের এখনকার পণ্য তালিকা:
+পণ্য তালিকা:
 ${productList}
 
-নিয়ম:
-- শুধু এই পণ্য তালিকা থেকে সঠিক তথ্য দেবে
-- সংক্ষিপ্ত ও বন্ধুত্বপূর্ণ ভাষায় কথা বলবে
-- ইমোজি ব্যবহার করো
-- অর্ডার করতে উৎসাহিত করো
-- পণ্যের বাইরের বিষয়ে কথা বলবে না`;
+ডেলিভারি: ঢাকায় ৬০৳, বাইরে ১২০৳ | পেমেন্ট: বিকাশ/নগদ/রকেট/COD
+অর্ডার করতে: নাম+ঠিকানা+ফোন+পণ্যের নাম+সাইজ দিন
+
+কাস্টমার বলেছে: ${userMessage}
+
+বাংলায় সংক্ষিপ্ত উত্তর দাও। ইমোজি ব্যবহার করো।`;
 
   try {
     const response = await axios.post(
       "https://openrouter.ai/api/v1/chat/completions",
       {
         model: "openrouter/free",
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: userMessage }
-        ],
-        max_tokens: 500
+        messages: [{ role: "user", content: prompt }],
+        max_tokens: 400
       },
       {
         headers: {
@@ -76,7 +71,12 @@ ${productList}
         }
       }
     );
-    return response.data.choices[0].message.content;
+
+    const content = response.data?.choices?.[0]?.message?.content;
+    if (content && content.trim()) {
+      return content.trim();
+    }
+    return "দুঃখিত, একটু সমস্যা হচ্ছে। আবার চেষ্টা করুন 🙏";
   } catch (err) {
     console.error("AI error:", JSON.stringify(err.response?.data) || err.message);
     return "দুঃখিত, এখন একটু সমস্যা হচ্ছে। একটু পরে আবার চেষ্টা করুন 🙏";
@@ -104,7 +104,7 @@ async function sendWAMessage(to, text) {
       `https://graph.facebook.com/v18.0/${process.env.WHATSAPP_PHONE_ID}/messages`,
       {
         messaging_product: "whatsapp",
-        to: to,
+        to,
         type: "text",
         text: { body: text }
       },
@@ -140,7 +140,7 @@ module.exports = async (req, res) => {
           if (event.message && event.message.text && !event.message.is_echo) {
             const userText = event.message.text;
             const senderId = event.sender.id;
-            console.log(`FB Message from ${senderId}: ${userText}`);
+            console.log(`FB: ${senderId}: ${userText}`);
             const products = await getProductsFromFirebase();
             const reply = await getAIReply(userText, products);
             await sendFBMessage(senderId, reply);
