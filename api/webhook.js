@@ -1,66 +1,56 @@
 const axios = require("axios");
-const admin = require("firebase-admin");
 
-// Firebase Admin SDK initialize
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert({
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-    }),
-    databaseURL: "https://cloth-distribution-default-rtdb.firebaseio.com"
-  });
-}
-
-const db = admin.firestore();
-
-// Firebase থেকে সব পণ্য আনো
+// Firebase REST API দিয়ে পণ্য আনো (Admin SDK ছাড়া)
 async function getProductsFromFirebase() {
   try {
-    const snap = await db.collection('products').orderBy('createdAt', 'desc').get();
-    const products = [];
-    snap.forEach(doc => {
-      const p = doc.data();
-      if (p.name) {
-        products.push({
-          নাম: p.name || '',
-          ক্যাটাগরি: p.category || '',
-          বিবরণ: p.description || '',
-          বিক্রয়_মূল্য: p.sellingPrice || 0,
-          স্টক: p.stock || 0,
-        });
-      }
-    });
+    const projectId = process.env.FIREBASE_PROJECT_ID;
+    const apiKey = process.env.FIREBASE_API_KEY;
+    
+    const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/products?key=${apiKey}&pageSize=50`;
+    
+    const response = await axios.get(url);
+    const documents = response.data.documents || [];
+    
+    const products = documents.map(doc => {
+      const f = doc.fields || {};
+      return {
+        নাম: f.name?.stringValue || '',
+        ক্যাটাগরি: f.category?.stringValue || '',
+        বিবরণ: f.description?.stringValue || '',
+        বিক্রয়_মূল্য: f.sellingPrice?.integerValue || f.sellingPrice?.doubleValue || 0,
+        স্টক: f.stock?.integerValue || 0,
+      };
+    }).filter(p => p.নাম);
+    
+    console.log(`Firebase থেকে ${products.length}টি পণ্য পাওয়া গেছে`);
     return products;
   } catch (err) {
-    console.error("Firebase error:", err.message);
+    console.error("Firebase error:", err.response?.data || err.message);
     return [];
   }
 }
 
-// AI দিয়ে উত্তর নাও
 async function getAIReply(userMessage, products) {
   const productList = products.length > 0
     ? products.map(p =>
-        `- ${p.নাম} (${p.ক্যাটাগরি}): ৳${p.বিক্রয়_মূল্য}, স্টক: ${p.স্টক}${p.বিবরণ ? ', ' + p.বিবরণ : ''}`
+        `- ${p.নাম} (${p.ক্যাটাগরি}): ৳${p.বিক্রয়_মূল্য}, স্টক: ${p.স্টক}টি${p.বিবরণ ? ', বিবরণ: ' + p.বিবরণ.slice(0, 100) : ''}`
       ).join('\n')
-    : 'এখন কোনো পণ্য নেই।';
+    : 'এখন কোনো পণ্য স্টকে নেই।';
 
-  const SYSTEM_PROMPT = `তুমি Jolrasi-র AI সহকারী। সবসময় বাংলায় কথা বলবে।
+  const SYSTEM_PROMPT = `তুমি Jolrasi Clothing Brand-এর AI সহকারী। সবসময় বাংলায় কথা বলবে।
 
 বিজনেসের তথ্য:
 - ডেলিভারি: সারা বাংলাদেশে কুরিয়ারে, ৩-৫ কার্যদিবস
 - চার্জ: ঢাকায় ৬০ টাকা, ঢাকার বাইরে ১২০ টাকা
 - পেমেন্ট: বিকাশ, নগদ, রকেট, ক্যাশ অন ডেলিভারি
-- অর্ডার: নাম + ঠিকানা + ফোন + পণ্যের নাম জানালে অর্ডার হবে
+- অর্ডার: নাম + ঠিকানা + ফোন + পণ্যের নাম + সাইজ জানালে অর্ডার হবে
 - রিটার্ন: পণ্য পেলে ২৪ ঘণ্টার মধ্যে জানাতে হবে
 
-এখন আমাদের পণ্য তালিকা:
+আমাদের এখনকার পণ্য তালিকা:
 ${productList}
 
 নিয়ম:
-- শুধু এই পণ্য তালিকা থেকে তথ্য দেবে
+- শুধু এই পণ্য তালিকা থেকে সঠিক তথ্য দেবে
 - সংক্ষিপ্ত ও বন্ধুত্বপূর্ণ ভাষায় কথা বলবে
 - ইমোজি ব্যবহার করো
 - অর্ডার করতে উৎসাহিত করো
