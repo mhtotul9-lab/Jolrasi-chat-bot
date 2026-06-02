@@ -1,24 +1,71 @@
 const axios = require("axios");
+const admin = require("firebase-admin");
 
-const SYSTEM_PROMPT = `তুমি একটি বাংলাদেশি কাপড়ের বিজনেসের AI সহকারী।
-সবসময় বাংলায় কথা বলবে।
+// Firebase Admin SDK initialize
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.cert({
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+    }),
+    databaseURL: "https://cloth-distribution-default-rtdb.firebaseio.com"
+  });
+}
+
+const db = admin.firestore();
+
+// Firebase থেকে সব পণ্য আনো
+async function getProductsFromFirebase() {
+  try {
+    const snap = await db.collection('products').orderBy('createdAt', 'desc').get();
+    const products = [];
+    snap.forEach(doc => {
+      const p = doc.data();
+      if (p.name) {
+        products.push({
+          নাম: p.name || '',
+          ক্যাটাগরি: p.category || '',
+          বিবরণ: p.description || '',
+          বিক্রয়_মূল্য: p.sellingPrice || 0,
+          স্টক: p.stock || 0,
+        });
+      }
+    });
+    return products;
+  } catch (err) {
+    console.error("Firebase error:", err.message);
+    return [];
+  }
+}
+
+// AI দিয়ে উত্তর নাও
+async function getAIReply(userMessage, products) {
+  const productList = products.length > 0
+    ? products.map(p =>
+        `- ${p.নাম} (${p.ক্যাটাগরি}): ৳${p.বিক্রয়_মূল্য}, স্টক: ${p.স্টক}${p.বিবরণ ? ', ' + p.বিবরণ : ''}`
+      ).join('\n')
+    : 'এখন কোনো পণ্য নেই।';
+
+  const SYSTEM_PROMPT = `তুমি Jolrasi-র AI সহকারী। সবসময় বাংলায় কথা বলবে।
 
 বিজনেসের তথ্য:
-- সব ধরনের কাপড়: শাড়ি, থ্রিপিস, পাঞ্জাবি, শার্ট, বাচ্চাদের কাপড়
-- দাম: ৩০০ টাকা থেকে শুরু, ধরন অনুযায়ী আলাদা
 - ডেলিভারি: সারা বাংলাদেশে কুরিয়ারে, ৩-৫ কার্যদিবস
 - চার্জ: ঢাকায় ৬০ টাকা, ঢাকার বাইরে ১২০ টাকা
 - পেমেন্ট: বিকাশ, নগদ, রকেট, ক্যাশ অন ডেলিভারি
-- অর্ডার: নাম + ঠিকানা + ফোন + কাপড়ের নাম জানালে অর্ডার হবে
+- অর্ডার: নাম + ঠিকানা + ফোন + পণ্যের নাম জানালে অর্ডার হবে
 - রিটার্ন: পণ্য পেলে ২৪ ঘণ্টার মধ্যে জানাতে হবে
 
+এখন আমাদের পণ্য তালিকা:
+${productList}
+
 নিয়ম:
+- শুধু এই পণ্য তালিকা থেকে তথ্য দেবে
 - সংক্ষিপ্ত ও বন্ধুত্বপূর্ণ ভাষায় কথা বলবে
 - ইমোজি ব্যবহার করো
 - অর্ডার করতে উৎসাহিত করো
-- কাপড়ের বাইরের বিষয়ে কথা বলবে না`;
+- পণ্যের বাইরের বিষয়ে কথা বলবে না`;
 
-async function getAIReply(userMessage) {
   try {
     const response = await axios.post(
       "https://openrouter.ai/api/v1/chat/completions",
@@ -104,7 +151,8 @@ module.exports = async (req, res) => {
             const userText = event.message.text;
             const senderId = event.sender.id;
             console.log(`FB Message from ${senderId}: ${userText}`);
-            const reply = await getAIReply(userText);
+            const products = await getProductsFromFirebase();
+            const reply = await getAIReply(userText, products);
             await sendFBMessage(senderId, reply);
           }
         }
@@ -119,7 +167,8 @@ module.exports = async (req, res) => {
           if (messages) {
             for (const msg of messages) {
               if (msg.type === "text") {
-                const reply = await getAIReply(msg.text.body);
+                const products = await getProductsFromFirebase();
+                const reply = await getAIReply(msg.text.body, products);
                 await sendWAMessage(msg.from, reply);
               }
             }
