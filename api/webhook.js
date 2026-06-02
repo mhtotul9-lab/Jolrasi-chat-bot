@@ -23,7 +23,6 @@ async function getProductsFromFirebase() {
         products.push({
           নাম: p.name || '',
           ক্যাটাগরি: p.category || '',
-          বিবরণ: (p.description || '').slice(0, 80),
           মূল্য: p.sellingPrice || 0,
           স্টক: p.stock || 0,
         });
@@ -39,20 +38,36 @@ async function getProductsFromFirebase() {
 
 async function getAIReply(userMessage, products) {
   const productList = products.length > 0
-    ? products.map(p => `• ${p.নাম} | ${p.ক্যাটাগরি} | ৳${p.মূল্য} | স্টক:${p.স্টক}`).join('\n')
-    : 'এখন কোনো পণ্য নেই।';
+    ? products.map((p, i) =>
+        `${i + 1}. ${p.নাম}\n   ক্যাটাগরি: ${p.ক্যাটাগরি}\n   দাম: ৳${p.মূল্য}\n   স্টক: ${p.স্টক}টি`
+      ).join('\n\n')
+    : 'এখন কোনো পণ্য স্টকে নেই।';
 
-  const prompt = `তুমি Jolrasi Clothing Brand-এর বাংলা AI সহকারী।
+  const prompt = `তুমি Jolrasi Clothing Brand-এর AI সহকারী।
 
-পণ্য তালিকা:
+ব্র্যান্ডের তথ্য:
+- নাম: Jolrasi Clothing Brand
+- ওয়েবসাইট: https://jolrasi.com
+- Facebook: https://www.facebook.com/jolrasii
+- ফোন: 01859-393487
+- ডেলিভারি: সারা বাংলাদেশে, ঢাকায় ৬০৳, ঢাকার বাইরে ১২০৳, ৩-৫ কার্যদিবস
+- পেমেন্ট: বিকাশ, নগদ, রকেট, ক্যাশ অন ডেলিভারি
+- অর্ডার: নাম + ঠিকানা + ফোন + পণ্যের নাম + সাইজ দিলে অর্ডার হবে
+- রিটার্ন: পণ্য পেলে ২৪ ঘণ্টার মধ্যে জানাতে হবে
+
+আমাদের পণ্য তালিকা:
 ${productList}
 
-ডেলিভারি: ঢাকায় ৬০৳, বাইরে ১২০৳ | পেমেন্ট: বিকাশ/নগদ/রকেট/COD
-অর্ডার করতে: নাম+ঠিকানা+ফোন+পণ্যের নাম+সাইজ দিন
+গুরুত্বপূর্ণ নিয়ম:
+- কাস্টমার বাংলা, ইংরেজি বা বাংলিশ (dam koto, price koto, ki ache, order korbo, stock ache, delivery charge, payment method) যেভাবেই লিখুক বুঝে সঠিক উত্তর দাও
+- পণ্যের তালিকা দেখালে নম্বর দিয়ে সিরিয়ালি সুন্দর করে দেখাও
+- সংক্ষিপ্ত ও বন্ধুত্বপূর্ণ ভাষায় কথা বলো
+- ইমোজি ব্যবহার করো
+- শুধু এই পণ্য তালিকার তথ্য দাও, বানিয়ে বলবে না
 
-কাস্টমার বলেছে: ${userMessage}
+কাস্টমার বলেছে: "${userMessage}"
 
-বাংলায় সংক্ষিপ্ত উত্তর দাও। ইমোজি ব্যবহার করো।`;
+বাংলায় উত্তর দাও।`;
 
   try {
     const response = await axios.post(
@@ -60,7 +75,7 @@ ${productList}
       {
         model: "openrouter/free",
         messages: [{ role: "user", content: prompt }],
-        max_tokens: 400
+        max_tokens: 500
       },
       {
         headers: {
@@ -73,9 +88,7 @@ ${productList}
     );
 
     const content = response.data?.choices?.[0]?.message?.content;
-    if (content && content.trim()) {
-      return content.trim();
-    }
+    if (content && content.trim()) return content.trim();
     return "দুঃখিত, একটু সমস্যা হচ্ছে। আবার চেষ্টা করুন 🙏";
   } catch (err) {
     console.error("AI error:", JSON.stringify(err.response?.data) || err.message);
@@ -138,12 +151,10 @@ module.exports = async (req, res) => {
       for (const entry of body.entry || []) {
         for (const event of entry.messaging || []) {
           if (event.message && event.message.text && !event.message.is_echo) {
-            const userText = event.message.text;
-            const senderId = event.sender.id;
-            console.log(`FB: ${senderId}: ${userText}`);
+            console.log(`FB: ${event.sender.id}: ${event.message.text}`);
             const products = await getProductsFromFirebase();
-            const reply = await getAIReply(userText, products);
-            await sendFBMessage(senderId, reply);
+            const reply = await getAIReply(event.message.text, products);
+            await sendFBMessage(event.sender.id, reply);
           }
         }
       }
